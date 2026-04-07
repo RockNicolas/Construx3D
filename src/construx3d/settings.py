@@ -7,6 +7,13 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Dict
 
+try:
+    import ctypes
+    from ctypes import wintypes
+except ImportError:  # pragma: no cover - ctypes is part of the stdlib on supported Python builds.
+    ctypes = None
+    wintypes = None
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 CONFIG_DIR = PROJECT_ROOT / "config"
@@ -107,6 +114,25 @@ def ensure_runtime_dirs() -> None:
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     EXPORT_DIR.mkdir(parents=True, exist_ok=True)
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def get_display_work_area() -> tuple[int, int, int, int]:
+    if os.name != "nt" or ctypes is None or wintypes is None:
+        return (0, 0, 1366, 768)
+
+    try:
+        rect = wintypes.RECT()
+        spi_get_work_area = 48
+        if ctypes.windll.user32.SystemParametersInfoW(spi_get_work_area, 0, ctypes.byref(rect), 0):
+            return (rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top)
+    except Exception:
+        pass
+
+    try:
+        user32 = ctypes.windll.user32
+        return (0, 0, int(user32.GetSystemMetrics(0)), int(user32.GetSystemMetrics(1)))
+    except Exception:
+        return (0, 0, 1366, 768)
 
 
 def ensure_hand_landmarker_model() -> Path:

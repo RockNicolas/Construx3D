@@ -6,7 +6,7 @@ from typing import Optional, Tuple
 import cv2
 
 from .scene import GestureLatch, Scene3D, clamp, nearest_shape
-from .settings import EXPORT_DIR, LATEST_JSON, PRIMITIVES, PRIMITIVE_LABELS, WINDOW_NAME, ensure_runtime_dirs, latest_scene_input_path, load_settings
+from .settings import EXPORT_DIR, LATEST_JSON, PRIMITIVES, PRIMITIVE_LABELS, WINDOW_NAME, ensure_runtime_dirs, get_display_work_area, latest_scene_input_path, load_settings
 from .tracking import HandTracker, select_support_and_action_hands
 from .ui import draw_hold_indicator, draw_panel, export_scene
 
@@ -30,6 +30,13 @@ def main() -> None:
         raise RuntimeError("Nao foi possivel abrir a webcam.")
 
     cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
+    work_x, work_y, work_width, work_height = get_display_work_area()
+    initial_width = min(settings.camera.width, max(work_width - 80, 640))
+    initial_height = min(settings.camera.height, max(work_height - 80, 480))
+    initial_x = work_x + max((work_width - initial_width) // 2, 0)
+    initial_y = work_y + max((work_height - initial_height) // 2, 0)
+    cv2.resizeWindow(WINDOW_NAME, initial_width, initial_height)
+    cv2.moveWindow(WINDOW_NAME, initial_x, initial_y)
 
     action_dragging = False
     drag_snapshot_taken = False
