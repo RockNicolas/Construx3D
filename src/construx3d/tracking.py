@@ -32,8 +32,8 @@ BUILD_HAND_LABEL = "Left"
 ERASE_HAND_LABEL = "Right"
 BUILD_HAND_CONNECTION_COLOR = (255, 170, 235)
 BUILD_HAND_POINT_COLOR = (255, 205, 245)
-ERASE_HAND_CONNECTION_COLOR = (255, 145, 95)
-ERASE_HAND_POINT_COLOR = (255, 215, 180)
+ERASE_HAND_CONNECTION_COLOR = (255, 170, 120)
+ERASE_HAND_POINT_COLOR = (255, 220, 190)
 
 
 @dataclass
@@ -109,8 +109,8 @@ class HandTracker:
             self.mp_hands = None
             self.drawer = None
 
-    def _hand_colors(self, label: str) -> tuple[tuple[int, int, int], tuple[int, int, int]]:
-        if label == BUILD_HAND_LABEL:
+    def _hand_colors(self, center_x: int, frame_width: int) -> tuple[tuple[int, int, int], tuple[int, int, int]]:
+        if center_x < frame_width // 2:
             return BUILD_HAND_POINT_COLOR, BUILD_HAND_CONNECTION_COLOR
         return ERASE_HAND_POINT_COLOR, ERASE_HAND_CONNECTION_COLOR
 
@@ -164,7 +164,7 @@ class HandTracker:
                     center=palm_center,
                 )
             )
-            point_color, connection_color = self._hand_colors(label)
+            point_color, connection_color = self._hand_colors(palm_center[0], frame_w)
             self.drawer.draw_landmarks(
                 frame,
                 hand_landmarks,
@@ -217,12 +217,12 @@ class HandTracker:
                     center=palm_center,
                 )
             )
-            self._draw_task_landmarks(frame, landmarks_px, label)
+            self._draw_task_landmarks(frame, landmarks_px, frame_w)
 
         return detected
 
-    def _draw_task_landmarks(self, frame: np.ndarray, landmarks_px: Dict[int, Tuple[int, int]], label: str) -> None:
-        point_color, connection_color = self._hand_colors(label)
+    def _draw_task_landmarks(self, frame: np.ndarray, landmarks_px: Dict[int, Tuple[int, int]], frame_width: int) -> None:
+        point_color, connection_color = self._hand_colors(landmarks_px[9][0], frame_width)
         for start, end in HAND_CONNECTIONS:
             cv2.line(frame, landmarks_px[start], landmarks_px[end], connection_color, 2, cv2.LINE_AA)
         for point in landmarks_px.values():

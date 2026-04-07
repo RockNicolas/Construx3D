@@ -30,15 +30,13 @@ Edite `config/gesture_settings.json` para ajustar sensibilidade do pinch, tempos
 
 ## Gestos
 
-- Mova o dedo indicador pela faixa superior da tela para escolher Parede, Coluna, Laje, Escada ou Telhado.
-- Mao rosa: move o dedo indicador pela faixa superior para escolher a peca de construcao.
-- Mao rosa: gesto de clicar com o indicador cria a peca em espaco vazio.
-- Mao rosa: manter esse gesto posiciona a nova peca antes de fixar.
-- Mao rosa: pinça sobre uma peca duplica a forma e arrasta a copia.
-- Mao rosa fechada seleciona todas as pecas criadas.
+- O app usa um unico bloco 5x1 horizontal, igual ao da referencia.
+- Mao rosa: gesto de clicar com o indicador cria e fixa o bloco no grid imediatamente.
+- Mao rosa: pinça sobre um bloco duplica a forma e arrasta a copia.
+- Mao rosa fechada seleciona todos os blocos criados.
 - Mao rosa: soltar a pinça fixa a forma na ultima posicao 3D encaixada na grade.
-- Mao azul: gesto com indicador e medio levantados apaga a peca quando o cursor passa por cima dela.
+- Mao azul: gesto com indicador e medio levantados apaga o bloco quando o cursor passa por cima dele.
 - Mao rosa: polegar + minimo desfaz a ultima acao.
-- Duas maos abertas, como na pose frontal, rotacionam a peca selecionada em 360 graus.
+- Duas maos abertas, como na pose frontal, rotacionam o modulo selecionado em 360 graus.
 - Duas pinças ao mesmo tempo controlam o zoom pela distancia entre as maos.
 - O encaixe em grade pode ser ajustado em `config/gesture_settings.json` na secao `snap`.

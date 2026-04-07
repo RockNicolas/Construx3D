@@ -12,23 +12,13 @@ from .tracking import HandTracker, select_build_and_erase_hands
 from .ui import draw_hold_indicator, draw_panel, export_scene
 
 
-SHAPE_SELECTOR_ORDER = ["wall", "column", "slab", "stair", "roof"]
+FIXED_SHAPE_KIND = "square_5"
 
 
-def pick_shape_from_cursor(cursor: tuple[int, int], frame_size: tuple[int, int]) -> Optional[str]:
-    width, _ = frame_size
-    x, y = cursor
-    if y < 24 or y > 92:
-        return None
-
-    selector_left = max(width - 720, 280)
-    selector_width = min(660, width - selector_left - 24)
-    if x < selector_left or x > selector_left + selector_width:
-        return None
-
-    slot_width = selector_width / len(SHAPE_SELECTOR_ORDER)
-    index = min(int((x - selector_left) / slot_width), len(SHAPE_SELECTOR_ORDER) - 1)
-    return SHAPE_SELECTOR_ORDER[index]
+def cursor_colors(cursor_x: int, frame_width: int) -> tuple[tuple[int, int, int], tuple[int, int, int]]:
+    if cursor_x < frame_width // 2:
+        return (255, 225, 245), (255, 170, 235)
+    return (255, 225, 205), (255, 170, 120)
 
 
 def is_rotation_pose(build_hand, erase_hand) -> bool:
@@ -47,6 +37,8 @@ def main() -> None:
     latest_input = latest_scene_input_path()
     if latest_input.exists():
         scene.import_json(latest_input)
+    else:
+        scene.place_shape([0.0, 0.0, 0.0], FIXED_SHAPE_KIND)
 
     tracker = HandTracker(settings.tracking)
     latches = GestureLatch()
@@ -72,9 +64,9 @@ def main() -> None:
     create_pose_was_active = False
     select_all_was_active = False
     hold_mode: Optional[str] = None
-    active_shape_kind = "wall"
+    active_shape_kind = FIXED_SHAPE_KIND
     last_erased_shape_id: Optional[int] = None
-    status_text = "A mao rosa monta com pecas de construcao; a azul apaga ao passar por cima." 
+    status_text = "A mao rosa cria o bloco 5x1; a azul apaga ao passar por cima." 
     previous_time = time.time()
 
     try:
@@ -147,11 +139,6 @@ def main() -> None:
                 rotation_anchor = None
 
             if build_hand is not None:
-                selector_choice = pick_shape_from_cursor(build_hand.cursor, (frame_w, frame_h))
-                if selector_choice is not None and selector_choice != active_shape_kind and not build_hand.pinch:
-                    active_shape_kind = selector_choice
-                    status_text = f"Peca selecionada: {PRIMITIVE_LABELS[active_shape_kind]}."
-
                 cursor_world = scene.world_from_screen(build_hand.cursor, (frame_w, frame_h), build_hand.cursor_depth)
                 undo_active = build_hand.gesture_matches([True, False, False, False, True])
                 create_active = build_hand.is_create_pose and build_hover_id is None and not zoom_active and not rotation_active
@@ -162,18 +149,8 @@ def main() -> None:
                     status_text = f"{len(scene.shapes)} formas selecionadas."
 
                 if create_active and not create_pose_was_active and scene.held_shape_id is None:
-                    action = scene.begin_hold(cursor_world, active_shape_kind, None)
-                    hold_mode = "create"
-                    if action == "create":
-                        status_text = f"{PRIMITIVE_LABELS[active_shape_kind]} criado com o gesto da mao rosa."
-                elif hold_mode == "create" and scene.held_shape_id is not None:
-                    if create_active:
-                        if scene.update_held(cursor_world):
-                            status_text = "Posicionando forma com o gesto da mao rosa."
-                    else:
-                        if scene.release_held():
-                            status_text = "Forma criada e fixada na grade."
-                        hold_mode = None
+                    if scene.place_shape(cursor_world, active_shape_kind):
+                        status_text = f"{PRIMITIVE_LABELS[active_shape_kind]} criada com clique da mao rosa."
 
                 if duplicate_active and not pinch_was_active and scene.held_shape_id is None:
                     action = scene.begin_hold(cursor_world, active_shape_kind, build_hover_id)
@@ -199,15 +176,14 @@ def main() -> None:
                     if scene.undo():
                         status_text = "Ultima acao desfeita."
 
-                cv2.circle(frame, build_hand.cursor, 10, (255, 225, 245), 2, cv2.LINE_AA)
-                cv2.circle(frame, build_hand.cursor, 4, (255, 170, 235), -1, cv2.LINE_AA)
+                outer_color, inner_color = cursor_colors(build_hand.cursor[0], frame_w)
+                cv2.circle(frame, build_hand.cursor, 10, outer_color, 2, cv2.LINE_AA)
+                cv2.circle(frame, build_hand.cursor, 4, inner_color, -1, cv2.LINE_AA)
                 pinch_was_active = build_hand.pinch
                 create_pose_was_active = build_hand.is_create_pose
                 select_all_was_active = select_all_active
             else:
                 if pinch_was_active:
-                    scene.release_held()
-                if create_pose_was_active:
                     scene.release_held()
                 pinch_was_active = False
                 create_pose_was_active = False
@@ -224,8 +200,9 @@ def main() -> None:
                 elif not delete_active:
                     last_erased_shape_id = None
 
-                cv2.circle(frame, erase_hand.cursor, 10, (255, 220, 190), 2, cv2.LINE_AA)
-                cv2.circle(frame, erase_hand.cursor, 4, (255, 145, 95), -1, cv2.LINE_AA)
+                outer_color, inner_color = cursor_colors(erase_hand.cursor[0], frame_w)
+                cv2.circle(frame, erase_hand.cursor, 10, outer_color, 2, cv2.LINE_AA)
+                cv2.circle(frame, erase_hand.cursor, 4, inner_color, -1, cv2.LINE_AA)
             elif build_hand is None:
                 scene.hover_id = None
                 last_erased_shape_id = None

@@ -13,7 +13,7 @@ import numpy as np
 from .settings import PRIMITIVE_COLORS, PRIMITIVE_LABELS
 
 
-BLOCK_KIND = "wall"
+BLOCK_KIND = "square_1"
 AVAILABLE_SHAPES = tuple(PRIMITIVE_LABELS.keys())
 
 
@@ -75,80 +75,21 @@ def build_box(width: float, height: float, depth: float) -> Tuple[List[np.ndarra
     return vertices, edges, faces
 
 
+def module_spec(kind: str, scale: float) -> Tuple[float, float, float, int, int]:
+    if kind == "square_1":
+        return (scale, scale, scale * 0.3, 1, 1)
+    if kind == "square_3":
+        return (scale * 3.0, scale, scale * 0.3, 3, 1)
+    if kind == "square_5":
+        return (scale * 5.0, scale, scale * 0.3, 5, 1)
+    if kind == "square_5x3":
+        return (scale * 5.0, scale * 3.0, scale * 0.3, 5, 3)
+    return (scale, scale, scale * 0.3, 1, 1)
+
+
 def shape_geometry(kind: str, scale: float) -> Tuple[List[np.ndarray], List[Tuple[int, int]], List[Tuple[int, ...]]]:
-    if kind == "wall":
-        return build_box(scale * 1.9, scale * 1.2, scale * 0.28)
-
-    if kind == "column":
-        return build_box(scale * 0.6, scale * 1.9, scale * 0.6)
-
-    if kind == "slab":
-        return build_box(scale * 1.9, scale * 0.3, scale * 1.9)
-
-    if kind == "roof":
-        half_w = scale * 0.95
-        half_h = scale * 0.48
-        half_d = scale * 0.7
-        vertices = [
-            np.array([-half_w, -half_h, -half_d], dtype=float),
-            np.array([half_w, -half_h, -half_d], dtype=float),
-            np.array([0.0, half_h, -half_d], dtype=float),
-            np.array([-half_w, -half_h, half_d], dtype=float),
-            np.array([half_w, -half_h, half_d], dtype=float),
-            np.array([0.0, half_h, half_d], dtype=float),
-        ]
-        edges = [
-            (0, 1), (1, 2), (2, 0),
-            (3, 4), (4, 5), (5, 3),
-            (0, 3), (1, 4), (2, 5),
-        ]
-        faces = [
-            (0, 1, 2),
-            (3, 4, 5),
-            (0, 1, 4, 3),
-            (1, 2, 5, 4),
-            (2, 0, 3, 5),
-        ]
-        return vertices, edges, faces
-
-    if kind == "stair":
-        half_w = scale * 0.9
-        half_d = scale * 0.7
-        low_y = -scale * 0.48
-        mid_y = -scale * 0.08
-        high_y = scale * 0.32
-        vertices = [
-            np.array([-half_w, low_y, -half_d], dtype=float),
-            np.array([half_w, low_y, -half_d], dtype=float),
-            np.array([half_w, mid_y, -half_d], dtype=float),
-            np.array([0.0, mid_y, -half_d], dtype=float),
-            np.array([0.0, high_y, -half_d], dtype=float),
-            np.array([-half_w, high_y, -half_d], dtype=float),
-            np.array([-half_w, low_y, half_d], dtype=float),
-            np.array([half_w, low_y, half_d], dtype=float),
-            np.array([half_w, mid_y, half_d], dtype=float),
-            np.array([0.0, mid_y, half_d], dtype=float),
-            np.array([0.0, high_y, half_d], dtype=float),
-            np.array([-half_w, high_y, half_d], dtype=float),
-        ]
-        edges = [
-            (0, 1), (1, 2), (2, 3), (3, 4), (4, 5),
-            (6, 7), (7, 8), (8, 9), (9, 10), (10, 11),
-            (0, 6), (1, 7), (2, 8), (3, 9), (4, 10), (5, 11),
-        ]
-        faces = [
-            (0, 1, 7, 6),
-            (1, 2, 8, 7),
-            (2, 3, 9, 8),
-            (3, 4, 10, 9),
-            (4, 5, 11, 10),
-            (0, 5, 11, 6),
-            (0, 1, 2, 3, 4, 5),
-            (6, 7, 8, 9, 10, 11),
-        ]
-        return vertices, edges, faces
-
-    return build_box(scale, scale, scale)
+    width, height, depth, _, _ = module_spec(kind, scale)
+    return build_box(width, height, depth)
 
 
 def mix_color(color: Tuple[int, int, int], target: Tuple[int, int, int], weight: float) -> Tuple[int, int, int]:
@@ -232,9 +173,14 @@ class Scene3D:
 
     def _normalize_shape_kind(self, kind: str) -> str:
         legacy_map = {
-            "cube": "wall",
-            "pyramid": "roof",
-            "prism": "stair",
+            "cube": "square_1",
+            "wall": "square_1",
+            "column": "square_3",
+            "slab": "square_5",
+            "stair": "square_5x3",
+            "roof": "square_5x3",
+            "pyramid": "square_5x3",
+            "prism": "square_5",
         }
         kind = legacy_map.get(kind, kind)
         return kind if kind in AVAILABLE_SHAPES else BLOCK_KIND
@@ -246,7 +192,7 @@ class Scene3D:
             kind=normalized_kind,
             position=self.snap_position(position),
             scale=1.25,
-            rotation_y=0.45,
+            rotation_y=0.0,
             color=PRIMITIVE_COLORS[normalized_kind],
         )
 
@@ -280,6 +226,18 @@ class Scene3D:
         self.next_id += 1
         self.update_held(position)
         return action
+
+    def place_shape(self, position: List[float], kind: str = BLOCK_KIND) -> bool:
+        self.snapshot()
+        shape = self._make_shape(kind, position)
+        shape.position = self.snap_position(position, shape.scale)
+        self.shapes.append(shape)
+        self.selected_id = shape.shape_id
+        self.select_all_active = False
+        self.hover_id = shape.shape_id
+        self.held_shape_id = None
+        self.next_id += 1
+        return True
 
     def update_held(self, position: List[float]) -> bool:
         held = self.get_held()
@@ -423,6 +381,7 @@ class Scene3D:
             is_selected = self.select_all_active or self.selected_id == shape.shape_id
 
             vertices, edges, faces = shape_geometry(shape.kind, shape.scale)
+            module_width, module_height, module_depth, module_cols, module_rows = module_spec(shape.kind, shape.scale)
             transformed = []
             for vertex in vertices:
                 rotated = rotate_y(vertex, shape.rotation_y)
@@ -447,13 +406,13 @@ class Scene3D:
 
             face_layer = output.copy()
             highlight_layer = output.copy()
-            alpha = 0.18
+            alpha = 0.05
             if is_hovered:
-                alpha = 0.26
+                alpha = 0.1
             if is_selected:
-                alpha = max(alpha, 0.24)
+                alpha = max(alpha, 0.08)
             if is_held:
-                alpha = 0.34
+                alpha = 0.14
 
             sorted_faces = sorted(
                 ((sum(transformed[index][2] for index in face) / len(face), face) for face in faces),
@@ -462,12 +421,12 @@ class Scene3D:
 
             for depth_rank, (_, face) in enumerate(sorted_faces):
                 polygon = np.array([projected[index] for index in face], dtype=np.int32)
-                tone = 0.76 + depth_rank * 0.06
+                tone = 0.88 + depth_rank * 0.03
                 face_color = scale_color(color, tone)
                 if depth_rank == len(sorted_faces) - 1:
-                    face_color = mix_color(face_color, (255, 255, 255), 0.18)
+                    face_color = mix_color(face_color, (255, 255, 255), 0.1)
                 elif depth_rank >= max(len(sorted_faces) - 3, 0):
-                    face_color = scale_color(face_color, 0.92)
+                    face_color = scale_color(face_color, 0.96)
                 cv2.fillPoly(face_layer, [polygon], face_color, lineType=cv2.LINE_AA)
                 if depth_rank == len(sorted_faces) - 1:
                     cv2.fillPoly(highlight_layer, [polygon], accent_color, lineType=cv2.LINE_AA)
@@ -482,8 +441,27 @@ class Scene3D:
                 edge_thickness = thickness if is_front_edge else max(thickness - 1, 1)
                 cv2.line(output, projected[start], projected[end], edge_color, edge_thickness, cv2.LINE_AA)
 
+            grid_line_color = mix_color(outline_color, (255, 255, 255), 0.18)
+            plane_depths = (-module_depth / 2.0, module_depth / 2.0)
+            for plane_depth in plane_depths:
+                for col_index in range(1, module_cols):
+                    local_x = -module_width / 2.0 + (module_width * col_index / module_cols)
+                    start_local = np.array([local_x, -module_height / 2.0, plane_depth], dtype=float)
+                    end_local = np.array([local_x, module_height / 2.0, plane_depth], dtype=float)
+                    start_world = rotate_x(rotate_y(start_local, shape.rotation_y), -0.35) + np.array(shape.position, dtype=float)
+                    end_world = rotate_x(rotate_y(end_local, shape.rotation_y), -0.35) + np.array(shape.position, dtype=float)
+                    cv2.line(output, self.project(start_world, frame_size), self.project(end_world, frame_size), grid_line_color, max(thickness - 1, 1), cv2.LINE_AA)
+
+                for row_index in range(1, module_rows):
+                    local_y = -module_height / 2.0 + (module_height * row_index / module_rows)
+                    start_local = np.array([-module_width / 2.0, local_y, plane_depth], dtype=float)
+                    end_local = np.array([module_width / 2.0, local_y, plane_depth], dtype=float)
+                    start_world = rotate_x(rotate_y(start_local, shape.rotation_y), -0.35) + np.array(shape.position, dtype=float)
+                    end_world = rotate_x(rotate_y(end_local, shape.rotation_y), -0.35) + np.array(shape.position, dtype=float)
+                    cv2.line(output, self.project(start_world, frame_size), self.project(end_world, frame_size), grid_line_color, max(thickness - 1, 1), cv2.LINE_AA)
+
             center = self.project(np.array(shape.position, dtype=float), frame_size)
-            cv2.circle(output, center, 10 if is_held else 8 if (is_selected or is_hovered) else 6, accent_color, -1, cv2.LINE_AA)
+            cv2.circle(output, center, 8 if is_held else 6 if (is_selected or is_hovered) else 5, accent_color, -1, cv2.LINE_AA)
             if is_hovered or is_held:
                 halo_layer = output.copy()
                 cv2.circle(halo_layer, center, 18 if is_held else 14, outline_color, 2, cv2.LINE_AA)

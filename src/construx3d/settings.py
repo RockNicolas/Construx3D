@@ -30,20 +30,18 @@ HAND_LANDMARKER_MODEL_PATH = MODELS_DIR / "hand_landmarker.task"
 HAND_LANDMARKER_MODEL_URL = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task"
 WINDOW_NAME = "Construx3D - Editor por Gestos"
 SETTINGS_DISPLAY_PATH = "config/gesture_settings.json"
-PRIMITIVES = {1: "wall", 2: "column", 3: "slab", 4: "stair", 5: "roof"}
+PRIMITIVES = {1: "square_1", 2: "square_3", 3: "square_5", 4: "square_5x3"}
 PRIMITIVE_LABELS = {
-    "wall": "Parede",
-    "column": "Coluna",
-    "slab": "Laje",
-    "stair": "Escada",
-    "roof": "Telhado",
+    "square_1": "1x1",
+    "square_3": "3x1",
+    "square_5": "5x1",
+    "square_5x3": "5x3",
 }
 PRIMITIVE_COLORS = {
-    "wall": (242, 166, 194),
-    "column": (255, 214, 140),
-    "slab": (136, 222, 255),
-    "stair": (177, 255, 176),
-    "roof": (255, 154, 120),
+    "square_1": (242, 166, 194),
+    "square_3": (242, 166, 194),
+    "square_5": (242, 166, 194),
+    "square_5x3": (242, 166, 194),
 }
 
 
