@@ -1,0 +1,46 @@
+{
+  "camera": {
+    "width": 1280,
+    "height": 720
+  },
+  "tracking": {
+    "model_complexity": 0,
+    "max_num_hands": 2,
+    "min_detection_confidence": 0.65,
+    "min_tracking_confidence": 0.55,
+    "pinch_distance_threshold_px": 45.0
+  },
+  "gestures": {
+    "create": {
+      "hold_time": 0.45,
+      "cooldown": 0.65
+    },
+    "duplicate": {
+      "hold_time": 0.45,
+      "cooldown": 0.65
+    },
+    "delete": {
+      "hold_time": 0.45,
+      "cooldown": 0.65
+    },
+    "undo": {
+      "hold_time": 0.55,
+      "cooldown": 0.8
+    },
+    "commit": {
+      "hold_time": 0.35,
+      "cooldown": 0.45
+    },
+    "cancel_preview": {
+      "hold_time": 0.45,
+      "cooldown": 0.45
+    }
+  },
+  "zoom": {
+    "min_zoom": 350.0,
+    "max_zoom": 1500.0
+  },
+  "selection": {
+    "max_cursor_distance_px": 120.0
+  }
+}

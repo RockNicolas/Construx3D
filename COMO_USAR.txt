@@ -1,0 +1,100 @@
+CONSTRUX3D - GUIA RAPIDO
+
+COMO INICIAR
+
+1. Abra o terminal na pasta do projeto.
+2. Execute: python main.py
+3. Espere a janela da webcam abrir.
+4. Fique em frente a camera com boa iluminacao.
+
+VISAO GERAL
+
+- Mao direita: controla a criacao e manipulacao das estruturas.
+- Mao esquerda: escolhe o tipo da estrutura e controla o zoom.
+
+COMO ESCOLHER O TIPO DE ESTRUTURA
+
+Use a mao esquerda com os dedos levantados:
+
+- 1 dedo: Cubo
+- 2 dedos: Piramide
+- 3 dedos: Prisma
+
+COMO CRIAR UMA ESTRUTURA
+
+1. Escolha o tipo com a mao esquerda.
+2. Com a mao direita, faca o gesto de paz (indicador + medio).
+3. Segure esse gesto por um instante.
+4. Um preview da estrutura aparecera na cena.
+5. Mova a mao direita para reposicionar o preview.
+6. Abra a mao direita para fixar a estrutura.
+
+COMO MOVER UMA ESTRUTURA
+
+1. Aponte a mao direita para perto da estrutura desejada.
+2. O sistema seleciona a estrutura mais proxima do cursor da mao.
+3. Faca pinch com a mao direita (juntar polegar e indicador).
+4. Mantenha o pinch e mova a mao para reposicionar a estrutura.
+
+COMO DUPLICAR UMA ESTRUTURA
+
+1. Selecione uma estrutura com a mao direita.
+2. Mostre 3 dedos na mao direita.
+3. Segure o gesto por um instante.
+4. Uma copia sera criada em modo preview.
+5. Reposicione a copia movendo a mao direita.
+6. Abra a mao para fixar a copia.
+
+COMO DELETAR UMA ESTRUTURA
+
+1. Selecione a estrutura desejada.
+2. Feche a mao direita em punho.
+3. Segure por um instante.
+4. A estrutura selecionada sera removida.
+
+COMO DESFAZER
+
+1. Na mao direita, levante apenas o polegar e o dedo minimo.
+2. Segure esse gesto por um instante.
+3. A ultima acao sera desfeita.
+
+COMO CANCELAR UM PREVIEW
+
+1. Se houver uma estrutura em preview.
+2. Feche a mao direita em punho.
+3. Segure por um instante.
+4. O preview sera cancelado sem ser fixado.
+
+COMO USAR O ZOOM
+
+1. Use a mao esquerda.
+2. Faca pinch com polegar e indicador.
+3. Aproxime ou afaste os dedos para alterar o zoom.
+
+EXPORTACAO E REUTILIZACAO
+
+Teclas disponiveis:
+
+- J: exporta a cena atual em JSON
+- P: exporta a cena em JSON e PNG
+- L: recarrega o ultimo JSON salvo
+- ESC: fecha a aplicacao
+
+ONDE OS ARQUIVOS SAO SALVOS
+
+- Configuracao dos gestos: config/gesture_settings.json
+- Exportacoes da cena: data/exports/
+
+DICAS PARA FUNCIONAR MELHOR
+
+- Use fundo simples e boa iluminacao.
+- Evite deixar as maos muito proximas do rosto.
+- Mostre uma mao de cada vez quando estiver testando gestos novos.
+- Se os gestos estiverem sensiveis demais, ajuste config/gesture_settings.json.
+
+SE ALGO NAO FUNCIONAR
+
+- Confirme se a webcam abriu corretamente.
+- Verifique se a mao esta inteira dentro do quadro.
+- Teste com mais luz.
+- Ajuste os tempos e thresholds em config/gesture_settings.json.
