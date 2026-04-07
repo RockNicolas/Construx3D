@@ -28,16 +28,24 @@ HAND_CONNECTIONS = [
     (0, 17),
 ]
 
+BUILD_HAND_LABEL = "Left"
+ERASE_HAND_LABEL = "Right"
+BUILD_HAND_CONNECTION_COLOR = (255, 170, 235)
+BUILD_HAND_POINT_COLOR = (255, 205, 245)
+ERASE_HAND_CONNECTION_COLOR = (255, 145, 95)
+ERASE_HAND_POINT_COLOR = (255, 215, 180)
+
 
 @dataclass
 class HandState:
     label: str
     landmarks_px: Dict[int, Tuple[int, int]]
-    normalized: Dict[int, Tuple[float, float]]
+    normalized: Dict[int, Tuple[float, float, float]]
     fingers: List[bool]
     pinch: bool
     pinch_distance: float
     cursor: Tuple[int, int]
+    cursor_depth: float
     center: Tuple[int, int]
 
     @property
@@ -46,6 +54,24 @@ class HandState:
 
     def gesture_matches(self, pattern: List[bool]) -> bool:
         return self.fingers == pattern
+
+    @property
+    def is_fist(self) -> bool:
+        return self.finger_count <= 1 and not self.pinch
+
+    @property
+    def is_erase_pose(self) -> bool:
+        thumb_open, index_open, middle_open, ring_open, pinky_open = self.fingers
+        return index_open and middle_open and not ring_open and not pinky_open
+
+    @property
+    def is_create_pose(self) -> bool:
+        thumb_open, index_open, middle_open, ring_open, pinky_open = self.fingers
+        return index_open and not middle_open and not ring_open and not pinky_open and not self.pinch
+
+    @property
+    def is_select_all_pose(self) -> bool:
+        return self.finger_count <= 1 and not self.pinch
 
 
 class HandTracker:
@@ -83,6 +109,11 @@ class HandTracker:
             self.mp_hands = None
             self.drawer = None
 
+    def _hand_colors(self, label: str) -> tuple[tuple[int, int, int], tuple[int, int, int]]:
+        if label == BUILD_HAND_LABEL:
+            return BUILD_HAND_POINT_COLOR, BUILD_HAND_CONNECTION_COLOR
+        return ERASE_HAND_POINT_COLOR, ERASE_HAND_CONNECTION_COLOR
+
     def close(self) -> None:
         if self.hands is not None:
             self.hands.close()
@@ -106,16 +137,18 @@ class HandTracker:
         for hand_landmarks, handedness in zip(results.multi_hand_landmarks, results.multi_handedness):
             label = handedness.classification[0].label
             landmarks_px: Dict[int, Tuple[int, int]] = {}
-            normalized: Dict[int, Tuple[float, float]] = {}
+            normalized: Dict[int, Tuple[float, float, float]] = {}
             for index, landmark in enumerate(hand_landmarks.landmark):
                 px = int(landmark.x * frame_w)
                 py = int(landmark.y * frame_h)
                 landmarks_px[index] = (px, py)
-                normalized[index] = (landmark.x, landmark.y)
+                normalized[index] = (landmark.x, landmark.y, landmark.z)
 
             thumb_tip = landmarks_px[4]
             index_tip = landmarks_px[8]
-            pinch_distance = math.dist(thumb_tip, index_tip)
+            thumb_normalized = normalized[4]
+            index_normalized = normalized[8]
+            pinch_distance = math.dist(thumb_normalized, index_normalized)
             palm_center = landmarks_px[9]
             fingers = self._finger_state(landmarks_px, label)
             detected.append(
@@ -124,18 +157,20 @@ class HandTracker:
                     landmarks_px=landmarks_px,
                     normalized=normalized,
                     fingers=fingers,
-                    pinch=pinch_distance < self.settings.pinch_distance_threshold_px,
+                    pinch=pinch_distance < self.settings.pinch_distance_threshold_norm,
                     pinch_distance=pinch_distance,
                     cursor=index_tip,
+                    cursor_depth=index_normalized[2],
                     center=palm_center,
                 )
             )
+            point_color, connection_color = self._hand_colors(label)
             self.drawer.draw_landmarks(
                 frame,
                 hand_landmarks,
                 self.mp_hands.HAND_CONNECTIONS,
-                self.drawer.DrawingSpec(color=(120, 255, 190), thickness=2, circle_radius=3),
-                self.drawer.DrawingSpec(color=(70, 120, 255), thickness=2),
+                self.drawer.DrawingSpec(color=point_color, thickness=2, circle_radius=3),
+                self.drawer.DrawingSpec(color=connection_color, thickness=2),
             )
 
         return detected
@@ -154,17 +189,19 @@ class HandTracker:
         for hand_landmarks, handedness in zip(result.hand_landmarks, result.handedness):
             label = self._extract_handedness_label(handedness)
             landmarks_px: Dict[int, Tuple[int, int]] = {}
-            normalized: Dict[int, Tuple[float, float]] = {}
+            normalized: Dict[int, Tuple[float, float, float]] = {}
 
             for index, landmark in enumerate(hand_landmarks):
                 px = int(landmark.x * frame_w)
                 py = int(landmark.y * frame_h)
                 landmarks_px[index] = (px, py)
-                normalized[index] = (landmark.x, landmark.y)
+                normalized[index] = (landmark.x, landmark.y, landmark.z)
 
             thumb_tip = landmarks_px[4]
             index_tip = landmarks_px[8]
-            pinch_distance = math.dist(thumb_tip, index_tip)
+            thumb_normalized = normalized[4]
+            index_normalized = normalized[8]
+            pinch_distance = math.dist(thumb_normalized, index_normalized)
             palm_center = landmarks_px[9]
             fingers = self._finger_state(landmarks_px, label)
             detected.append(
@@ -173,21 +210,23 @@ class HandTracker:
                     landmarks_px=landmarks_px,
                     normalized=normalized,
                     fingers=fingers,
-                    pinch=pinch_distance < self.settings.pinch_distance_threshold_px,
+                    pinch=pinch_distance < self.settings.pinch_distance_threshold_norm,
                     pinch_distance=pinch_distance,
                     cursor=index_tip,
+                    cursor_depth=index_normalized[2],
                     center=palm_center,
                 )
             )
-            self._draw_task_landmarks(frame, landmarks_px)
+            self._draw_task_landmarks(frame, landmarks_px, label)
 
         return detected
 
-    def _draw_task_landmarks(self, frame: np.ndarray, landmarks_px: Dict[int, Tuple[int, int]]) -> None:
+    def _draw_task_landmarks(self, frame: np.ndarray, landmarks_px: Dict[int, Tuple[int, int]], label: str) -> None:
+        point_color, connection_color = self._hand_colors(label)
         for start, end in HAND_CONNECTIONS:
-            cv2.line(frame, landmarks_px[start], landmarks_px[end], (70, 120, 255), 2, cv2.LINE_AA)
+            cv2.line(frame, landmarks_px[start], landmarks_px[end], connection_color, 2, cv2.LINE_AA)
         for point in landmarks_px.values():
-            cv2.circle(frame, point, 3, (120, 255, 190), -1, cv2.LINE_AA)
+            cv2.circle(frame, point, 3, point_color, -1, cv2.LINE_AA)
 
     def _extract_handedness_label(self, handedness) -> str:
         if not handedness:
@@ -211,14 +250,14 @@ class HandTracker:
         return fingers
 
 
-def select_support_and_action_hands(hands: List[HandState]) -> Tuple[Optional[HandState], Optional[HandState]]:
-    support = next((hand for hand in hands if hand.label == "Left"), None)
-    action = next((hand for hand in hands if hand.label == "Right"), None)
+def select_build_and_erase_hands(hands: List[HandState]) -> Tuple[Optional[HandState], Optional[HandState]]:
+    build_hand = next((hand for hand in hands if hand.label == BUILD_HAND_LABEL), None)
+    erase_hand = next((hand for hand in hands if hand.label == ERASE_HAND_LABEL), None)
 
     if len(hands) == 1:
         single = hands[0]
-        if single.label == "Left":
-            return support, None
-        return None, single
+        if single.label == BUILD_HAND_LABEL:
+            return build_hand, None
+        return None, erase_hand
 
-    return support, action
+    return build_hand, erase_hand

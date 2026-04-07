@@ -8,7 +8,8 @@
     "max_num_hands": 2,
     "min_detection_confidence": 0.65,
     "min_tracking_confidence": 0.55,
-    "pinch_distance_threshold_px": 45.0
+    "pinch_distance_threshold_px": 45.0,
+    "pinch_distance_threshold_norm": 0.04
   },
   "gestures": {
     "create": {
@@ -39,6 +40,10 @@
   "zoom": {
     "min_zoom": 350.0,
     "max_zoom": 1500.0
+  },
+  "snap": {
+    "enabled": true,
+    "grid_size": 1.25
   },
   "selection": {
     "max_cursor_distance_px": 120.0

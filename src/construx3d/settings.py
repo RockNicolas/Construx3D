@@ -30,16 +30,20 @@ HAND_LANDMARKER_MODEL_PATH = MODELS_DIR / "hand_landmarker.task"
 HAND_LANDMARKER_MODEL_URL = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task"
 WINDOW_NAME = "Construx3D - Editor por Gestos"
 SETTINGS_DISPLAY_PATH = "config/gesture_settings.json"
-PRIMITIVES = {1: "cube", 2: "pyramid", 3: "prism"}
+PRIMITIVES = {1: "wall", 2: "column", 3: "slab", 4: "stair", 5: "roof"}
 PRIMITIVE_LABELS = {
-    "cube": "Cubo",
-    "pyramid": "Piramide",
-    "prism": "Prisma",
+    "wall": "Parede",
+    "column": "Coluna",
+    "slab": "Laje",
+    "stair": "Escada",
+    "roof": "Telhado",
 }
 PRIMITIVE_COLORS = {
-    "cube": (245, 120, 120),
-    "pyramid": (120, 220, 255),
-    "prism": (170, 255, 120),
+    "wall": (242, 166, 194),
+    "column": (255, 214, 140),
+    "slab": (136, 222, 255),
+    "stair": (177, 255, 176),
+    "roof": (255, 154, 120),
 }
 
 
@@ -56,6 +60,7 @@ class TrackingSettings:
     min_detection_confidence: float = 0.65
     min_tracking_confidence: float = 0.55
     pinch_distance_threshold_px: float = 45.0
+    pinch_distance_threshold_norm: float = 0.04
 
 
 @dataclass
@@ -86,12 +91,19 @@ class SelectionSettings:
 
 
 @dataclass
+class SnapSettings:
+    enabled: bool = True
+    grid_size: float = 1.25
+
+
+@dataclass
 class AppSettings:
     camera: CameraSettings
     tracking: TrackingSettings
     gestures: GestureSettings
     zoom: ZoomSettings
     selection: SelectionSettings
+    snap: SnapSettings
 
 
 DEFAULT_SETTINGS = AppSettings(
@@ -107,6 +119,7 @@ DEFAULT_SETTINGS = AppSettings(
     ),
     zoom=ZoomSettings(),
     selection=SelectionSettings(),
+    snap=SnapSettings(),
 )
 
 
@@ -175,6 +188,7 @@ def _build_settings(data: Dict[str, Any]) -> AppSettings:
     gestures = data.get("gestures", {})
     zoom = data.get("zoom", {})
     selection = data.get("selection", {})
+    snap = data.get("snap", {})
 
     return AppSettings(
         camera=CameraSettings(**camera),
@@ -189,6 +203,7 @@ def _build_settings(data: Dict[str, Any]) -> AppSettings:
         ),
         zoom=ZoomSettings(**zoom),
         selection=SelectionSettings(**selection),
+        snap=SnapSettings(**snap),
     )
 
 
