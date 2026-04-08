@@ -226,6 +226,13 @@ class Scene3D:
         active_step = max(step or self.grid_size, 0.05)
         return [self.snap_value(axis, active_step) for axis in position]
 
+    def find_shape_at(self, position: List[float], step: Optional[float] = None) -> Optional[Shape3D]:
+        snapped = self.snap_position(position, step)
+        for shape in self.shapes:
+            if all(abs(shape.position[axis] - snapped[axis]) <= 1e-6 for axis in range(3)):
+                return shape
+        return None
+
     def begin_hold(self, position: List[float], kind: str = BLOCK_KIND, source_id: Optional[int] = None) -> str:
         source = next((shape for shape in self.shapes if shape.shape_id == source_id), None)
 
@@ -247,8 +254,18 @@ class Scene3D:
         self.update_held(position)
         return action
 
-    def place_shape(self, position: List[float], kind: str = BLOCK_KIND) -> bool:
-        self.snapshot()
+    def place_shape(self, position: List[float], kind: str = BLOCK_KIND, record_history: bool = True) -> bool:
+        existing = self.find_shape_at(position)
+        if existing is not None:
+            self.selected_id = existing.shape_id
+            self.select_all_active = False
+            self.hover_id = existing.shape_id
+            self.held_shape_id = None
+            return False
+
+        if record_history:
+            self.snapshot()
+
         shape = self._make_shape(kind, position)
         shape.position = self.snap_position(position, shape.scale)
         self.shapes.append(shape)
@@ -306,6 +323,21 @@ class Scene3D:
         self.hover_id = None
         self.select_all_active = False
 
+    def center_scene(self) -> bool:
+        if not self.shapes:
+            return False
+
+        center = [
+            sum(shape.position[axis] for shape in self.shapes) / len(self.shapes)
+            for axis in range(3)
+        ]
+        for shape in self.shapes:
+            shape.position = self.snap_position(
+                [shape.position[axis] - center[axis] for axis in range(3)],
+                shape.scale,
+            )
+        return True
+
     def begin_group_transform(self) -> bool:
         if not self.shapes:
             self.clear_selection()
@@ -353,12 +385,20 @@ class Scene3D:
             return True
         return False
 
+    def get_shape(self, shape_id: Optional[int]) -> Optional[Shape3D]:
+        if shape_id is None:
+            return None
+        for shape in self.shapes:
+            if shape.shape_id == shape_id:
+                return shape
+        return None
+
     def get_selected(self) -> Optional[Shape3D]:
         if self.selected_id is None:
             return None
-        for shape in self.shapes:
-            if shape.shape_id == self.selected_id:
-                return shape
+        shape = self.get_shape(self.selected_id)
+        if shape is not None:
+            return shape
         self.selected_id = None
         return None
 
@@ -432,6 +472,7 @@ class Scene3D:
         self.camera_distance = float(data.get("camera_distance", self.camera_distance))
         self.camera_yaw = float(data.get("camera_yaw", self.camera_yaw))
         self.camera_pitch = float(data.get("camera_pitch", self.camera_pitch))
+        self.center_scene()
         self.selected_id = self.shapes[-1].shape_id if self.shapes else None
         self.select_all_active = False
         self.held_shape_id = None

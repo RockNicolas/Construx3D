@@ -93,7 +93,7 @@ class SelectionSettings:
 @dataclass
 class SnapSettings:
     enabled: bool = True
-    grid_size: float = 0.85
+    grid_size: float = 0.45
 
 
 @dataclass

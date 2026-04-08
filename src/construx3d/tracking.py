@@ -69,6 +69,12 @@ class HandState:
         return index_open and middle_open and not ring_open and not pinky_open
 
     @property
+    def is_draw_pose(self) -> bool:
+        _, _, middle_open, ring_open, pinky_open = self.fingers
+        raised_fingers = sum((middle_open, ring_open, pinky_open))
+        return self.pinch and raised_fingers >= 2
+
+    @property
     def is_create_pose(self) -> bool:
         thumb_open, index_open, middle_open, ring_open, pinky_open = self.fingers
         classic_create = index_open and not middle_open and not ring_open and not pinky_open

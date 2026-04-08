@@ -2,6 +2,8 @@
 
 Editor 3D em tempo real controlado por gestos das maos usando Python, OpenCV e MediaPipe.
 
+Ao iniciar, o app tambem abre uma janela de atividades em tempo real com eventos como selecao, criacao de blocos, movimento do conjunto, desfazer e exportacoes.
+
 ## Estrutura
 
 - `src/construx3d/`: codigo da aplicacao
@@ -34,6 +36,6 @@ Edite `config/gesture_settings.json` para ajustar sensibilidade do pinch, tempos
 - Mao rosa: o gesto sobre um bloco existente apenas seleciona a peca.
 - Mao rosa: totalmente aberta move e gira todos os blocos.
 - Mao rosa: fechada deixa tudo parado e limpa o bloco ativo.
-- Mao azul: gesto com indicador e medio levantados apaga o bloco quando o cursor passa por cima dele.
+- Mao azul: gesto tipo OK, sobre um bloco existente, arrasta e expande novos blocos grudados um a um.
 - Mao rosa: polegar + minimo desfaz a ultima acao.
 - O encaixe em grade pode ser ajustado em `config/gesture_settings.json` na secao `snap`.

@@ -27,7 +27,8 @@ def draw_panel(frame: np.ndarray, scene: Scene3D, active_shape_kind: str, status
         "Mao rosa: gesto sobre um bloco seleciona a peca",
         "Mao rosa: totalmente aberta move e gira todos os blocos",
         "Mao rosa: fechada deixa tudo parado e limpa o bloco ativo",
-        "Mao azul: indicador+medio apagam ao passar por cima | mao rosa: polegar+minimo desfaz",
+        "Mao azul: gesto tipo OK arrasta a partir de um bloco e expande grudado",
+        "Mao rosa: polegar+minimo desfaz a ultima acao",
         f"Calibracao em: {SETTINGS_DISPLAY_PATH}",
         "Teclas: U desfaz, J exporta JSON, P exporta PNG, L importa ultimo JSON, ESC sai",
     ]
