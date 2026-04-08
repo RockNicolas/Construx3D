@@ -28,8 +28,8 @@ HAND_CONNECTIONS = [
     (0, 17),
 ]
 
-BUILD_HAND_LABEL = "Left"
-ERASE_HAND_LABEL = "Right"
+BUILD_HAND_LABEL = "Right"
+ERASE_HAND_LABEL = "Left"
 BUILD_HAND_CONNECTION_COLOR = (255, 170, 235)
 BUILD_HAND_POINT_COLOR = (255, 205, 245)
 ERASE_HAND_CONNECTION_COLOR = (255, 170, 120)
@@ -60,6 +60,10 @@ class HandState:
         return self.finger_count <= 1 and not self.pinch
 
     @property
+    def is_open_palm(self) -> bool:
+        return self.finger_count >= 5 and not self.pinch
+
+    @property
     def is_erase_pose(self) -> bool:
         thumb_open, index_open, middle_open, ring_open, pinky_open = self.fingers
         return index_open and middle_open and not ring_open and not pinky_open
@@ -67,7 +71,15 @@ class HandState:
     @property
     def is_create_pose(self) -> bool:
         thumb_open, index_open, middle_open, ring_open, pinky_open = self.fingers
-        return index_open and not middle_open and not ring_open and not pinky_open and not self.pinch
+        classic_create = index_open and not middle_open and not ring_open and not pinky_open
+        alternate_create = (
+            thumb_open
+            and not index_open
+            and not middle_open
+            and ring_open
+            and pinky_open
+        )
+        return (classic_create or alternate_create) and not self.pinch
 
     @property
     def is_select_all_pose(self) -> bool:

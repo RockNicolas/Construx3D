@@ -77,14 +77,14 @@ def build_box(width: float, height: float, depth: float) -> Tuple[List[np.ndarra
 
 def module_spec(kind: str, scale: float) -> Tuple[float, float, float, int, int]:
     if kind == "square_1":
-        return (scale, scale, scale * 0.3, 1, 1)
+        return (scale, scale, scale, 1, 1)
     if kind == "square_3":
         return (scale * 3.0, scale, scale * 0.3, 3, 1)
     if kind == "square_5":
         return (scale * 5.0, scale, scale * 0.3, 5, 1)
     if kind == "square_5x3":
         return (scale * 5.0, scale * 3.0, scale * 0.3, 5, 3)
-    return (scale, scale, scale * 0.3, 1, 1)
+    return (scale, scale, scale, 1, 1)
 
 
 def shape_geometry(kind: str, scale: float) -> Tuple[List[np.ndarray], List[Tuple[int, int]], List[Tuple[int, ...]]]:
@@ -133,18 +133,38 @@ class GestureLatch:
 
 
 class Scene3D:
-    def __init__(self, grid_size: float = 1.25, snap_enabled: bool = True) -> None:
+    def __init__(
+        self,
+        grid_size: float = 0.85,
+        snap_enabled: bool = True,
+        camera_distance: float = 7.5,
+        zoom: float = 560.0,
+    ) -> None:
         self.shapes: List[Shape3D] = []
         self.held_shape_id: Optional[int] = None
         self.hover_id: Optional[int] = None
         self.selected_id: Optional[int] = None
         self.select_all_active = False
         self.next_id = 1
-        self.camera_distance = 7.5
-        self.zoom = 700.0
+        self.camera_distance = camera_distance
+        self.zoom = zoom
+        self.camera_yaw = 0.0
+        self.camera_pitch = 0.35
         self.history: List[Dict[str, object]] = []
         self.grid_size = max(grid_size, 0.05)
         self.snap_enabled = snap_enabled
+
+    def _to_view_space(self, point: np.ndarray) -> np.ndarray:
+        rotated = rotate_y(point, -self.camera_yaw)
+        return rotate_x(rotated, -self.camera_pitch)
+
+    def _from_view_space(self, point: np.ndarray) -> np.ndarray:
+        rotated = rotate_x(point, self.camera_pitch)
+        return rotate_y(rotated, self.camera_yaw)
+
+    def orbit_camera(self, delta_x: float, delta_y: float) -> None:
+        self.camera_yaw = (self.camera_yaw + delta_x) % (math.pi * 2.0)
+        self.camera_pitch = clamp(self.camera_pitch + delta_y, -1.25, 1.25)
 
     def snapshot(self) -> None:
         state = {
@@ -191,7 +211,7 @@ class Scene3D:
             shape_id=self.next_id,
             kind=normalized_kind,
             position=self.snap_position(position),
-            scale=1.25,
+            scale=self.grid_size,
             rotation_y=0.0,
             color=PRIMITIVE_COLORS[normalized_kind],
         )
@@ -239,6 +259,20 @@ class Scene3D:
         self.next_id += 1
         return True
 
+    def begin_move(self, shape_id: int, position: List[float]) -> bool:
+        shape = next((item for item in self.shapes if item.shape_id == shape_id), None)
+        if shape is None:
+            return False
+
+        if self.held_shape_id != shape_id:
+            self.snapshot()
+
+        self.held_shape_id = shape_id
+        self.selected_id = shape_id
+        self.select_all_active = False
+        self.hover_id = None
+        return self.update_held(position)
+
     def update_held(self, position: List[float]) -> bool:
         held = self.get_held()
         if held is None:
@@ -266,6 +300,58 @@ class Scene3D:
 
     def clear_select_all(self) -> None:
         self.select_all_active = False
+
+    def clear_selection(self) -> None:
+        self.selected_id = None
+        self.hover_id = None
+        self.select_all_active = False
+
+    def begin_group_transform(self) -> bool:
+        if not self.shapes:
+            self.clear_selection()
+            return False
+        self.snapshot()
+        self.select_all_active = True
+        self.selected_id = self.shapes[-1].shape_id
+        self.hover_id = None
+        self.held_shape_id = None
+        return True
+
+    def apply_group_transform(
+        self,
+        base_positions: Dict[int, List[float]],
+        base_rotations: Dict[int, float],
+        group_center: List[float],
+        translation: List[float],
+        rotation_delta: float,
+    ) -> bool:
+        if not self.shapes:
+            return False
+
+        center = np.array(group_center, dtype=float)
+        offset = np.array(translation, dtype=float)
+        applied = False
+        for shape in self.shapes:
+            original_position = base_positions.get(shape.shape_id)
+            if original_position is None:
+                continue
+
+            relative = np.array(original_position, dtype=float) - center
+            rotated_relative = rotate_y(relative, rotation_delta)
+            target_position = center + offset + rotated_relative
+            shape.position = self.snap_position(target_position.tolist(), shape.scale)
+            shape.rotation_y = (base_rotations.get(shape.shape_id, shape.rotation_y) + rotation_delta) % (math.pi * 2.0)
+            applied = True
+
+        return applied
+
+    def select_shape(self, shape_id: int) -> bool:
+        if any(shape.shape_id == shape_id for shape in self.shapes):
+            self.selected_id = shape_id
+            self.select_all_active = False
+            self.hover_id = shape_id
+            return True
+        return False
 
     def get_selected(self) -> Optional[Shape3D]:
         if self.selected_id is None:
@@ -321,6 +407,8 @@ class Scene3D:
         payload = {
             "camera_distance": self.camera_distance,
             "zoom": self.zoom,
+            "camera_yaw": self.camera_yaw,
+            "camera_pitch": self.camera_pitch,
             "next_id": self.next_id,
             "shapes": [asdict(shape) for shape in self.shapes],
         }
@@ -342,6 +430,8 @@ class Scene3D:
         self.next_id = int(data.get("next_id", len(self.shapes) + 1))
         self.zoom = float(data.get("zoom", self.zoom))
         self.camera_distance = float(data.get("camera_distance", self.camera_distance))
+        self.camera_yaw = float(data.get("camera_yaw", self.camera_yaw))
+        self.camera_pitch = float(data.get("camera_pitch", self.camera_pitch))
         self.selected_id = self.shapes[-1].shape_id if self.shapes else None
         self.select_all_active = False
         self.held_shape_id = None
@@ -356,16 +446,18 @@ class Scene3D:
         x = (point[0] - center_x) * self.camera_distance / self.zoom
         y = (center_y - point[1]) * self.camera_distance / self.zoom
         z = clamp(-depth * self.camera_distance * 10.0, -2.5, 2.5)
-        return [x, y, z]
+        world = self._from_view_space(np.array([x, y, z], dtype=float))
+        return world.tolist()
 
     def project(self, point: np.ndarray, frame_size: Tuple[int, int]) -> Tuple[int, int]:
         width, height = frame_size
         center_x = width / 2.0
         center_y = height / 2.0
-        depth = point[2] + self.camera_distance
+        view_point = self._to_view_space(point)
+        depth = view_point[2] + self.camera_distance
         factor = self.zoom / max(depth, 0.2)
-        x = int(center_x + point[0] * factor)
-        y = int(center_y - point[1] * factor)
+        x = int(center_x + view_point[0] * factor)
+        y = int(center_y - view_point[1] * factor)
         return x, y
 
     def render(self, frame: np.ndarray) -> np.ndarray:
@@ -373,7 +465,11 @@ class Scene3D:
         height, width = output.shape[:2]
         frame_size = (width, height)
 
-        ordered = sorted(self.shapes, key=lambda item: item.position[2], reverse=True)
+        ordered = sorted(
+            self.shapes,
+            key=lambda item: self._to_view_space(np.array(item.position, dtype=float))[2],
+            reverse=True,
+        )
 
         for shape in ordered:
             is_hovered = self.hover_id == shape.shape_id
@@ -385,8 +481,8 @@ class Scene3D:
             transformed = []
             for vertex in vertices:
                 rotated = rotate_y(vertex, shape.rotation_y)
-                rotated = rotate_x(rotated, -0.35)
                 transformed.append(rotated + np.array(shape.position, dtype=float))
+            transformed_view = [self._to_view_space(vertex) for vertex in transformed]
 
             projected = [self.project(vertex, frame_size) for vertex in transformed]
             color = tuple(int(channel) for channel in shape.color)
@@ -398,7 +494,8 @@ class Scene3D:
 
             base_center = np.array(shape.position, dtype=float) + np.array([0.0, -shape.scale * 0.55, 0.0], dtype=float)
             shadow_center = self.project(base_center, frame_size)
-            shadow_radius_x = max(int(shape.scale * self.zoom / max(shape.position[2] + self.camera_distance + 0.8, 0.4) * 0.44), 18)
+            base_view_depth = self._to_view_space(base_center)[2]
+            shadow_radius_x = max(int(shape.scale * self.zoom / max(base_view_depth + self.camera_distance + 0.8, 0.4) * 0.44), 18)
             shadow_radius_y = max(int(shadow_radius_x * 0.34), 10)
             shadow_layer = output.copy()
             cv2.ellipse(shadow_layer, shadow_center, (shadow_radius_x, shadow_radius_y), 0, 0, 360, (30, 20, 35), -1, cv2.LINE_AA)
@@ -415,7 +512,7 @@ class Scene3D:
                 alpha = 0.14
 
             sorted_faces = sorted(
-                ((sum(transformed[index][2] for index in face) / len(face), face) for face in faces),
+                ((sum(transformed_view[index][2] for index in face) / len(face), face) for face in faces),
                 reverse=True,
             )
 
@@ -435,8 +532,9 @@ class Scene3D:
             cv2.addWeighted(highlight_layer, 0.09 if not is_held else 0.14, output, 0.91 if not is_held else 0.86, 0.0, output)
 
             for start, end in edges:
-                edge_mid_depth = (transformed[start][2] + transformed[end][2]) / 2.0
-                is_front_edge = edge_mid_depth > shape.position[2]
+                edge_mid_depth = (transformed_view[start][2] + transformed_view[end][2]) / 2.0
+                shape_mid_depth = self._to_view_space(np.array(shape.position, dtype=float))[2]
+                is_front_edge = edge_mid_depth > shape_mid_depth
                 edge_color = accent_color if is_front_edge else outline_color
                 edge_thickness = thickness if is_front_edge else max(thickness - 1, 1)
                 cv2.line(output, projected[start], projected[end], edge_color, edge_thickness, cv2.LINE_AA)
@@ -448,16 +546,16 @@ class Scene3D:
                     local_x = -module_width / 2.0 + (module_width * col_index / module_cols)
                     start_local = np.array([local_x, -module_height / 2.0, plane_depth], dtype=float)
                     end_local = np.array([local_x, module_height / 2.0, plane_depth], dtype=float)
-                    start_world = rotate_x(rotate_y(start_local, shape.rotation_y), -0.35) + np.array(shape.position, dtype=float)
-                    end_world = rotate_x(rotate_y(end_local, shape.rotation_y), -0.35) + np.array(shape.position, dtype=float)
+                    start_world = rotate_y(start_local, shape.rotation_y) + np.array(shape.position, dtype=float)
+                    end_world = rotate_y(end_local, shape.rotation_y) + np.array(shape.position, dtype=float)
                     cv2.line(output, self.project(start_world, frame_size), self.project(end_world, frame_size), grid_line_color, max(thickness - 1, 1), cv2.LINE_AA)
 
                 for row_index in range(1, module_rows):
                     local_y = -module_height / 2.0 + (module_height * row_index / module_rows)
                     start_local = np.array([-module_width / 2.0, local_y, plane_depth], dtype=float)
                     end_local = np.array([module_width / 2.0, local_y, plane_depth], dtype=float)
-                    start_world = rotate_x(rotate_y(start_local, shape.rotation_y), -0.35) + np.array(shape.position, dtype=float)
-                    end_world = rotate_x(rotate_y(end_local, shape.rotation_y), -0.35) + np.array(shape.position, dtype=float)
+                    start_world = rotate_y(start_local, shape.rotation_y) + np.array(shape.position, dtype=float)
+                    end_world = rotate_y(end_local, shape.rotation_y) + np.array(shape.position, dtype=float)
                     cv2.line(output, self.project(start_world, frame_size), self.project(end_world, frame_size), grid_line_color, max(thickness - 1, 1), cv2.LINE_AA)
 
             center = self.project(np.array(shape.position, dtype=float), frame_size)

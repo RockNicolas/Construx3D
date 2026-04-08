@@ -38,12 +38,14 @@
     }
   },
   "zoom": {
+    "default_zoom": 560.0,
     "min_zoom": 350.0,
-    "max_zoom": 1500.0
+    "max_zoom": 1500.0,
+    "camera_distance": 7.5
   },
   "snap": {
     "enabled": true,
-    "grid_size": 1.25
+    "grid_size": 0.85
   },
   "selection": {
     "max_cursor_distance_px": 120.0

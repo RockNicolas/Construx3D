@@ -26,17 +26,14 @@ construx3d
 
 ## Calibracao
 
-Edite `config/gesture_settings.json` para ajustar sensibilidade do pinch, tempos de hold/cooldown, zoom e distancia maxima de selecao.
+Edite `config/gesture_settings.json` para ajustar sensibilidade do pinch, tempos de hold/cooldown, zoom inicial, limites de zoom, distancia da camera e distancia maxima de selecao.
 
 ## Gestos
 
-- O app usa um unico bloco 5x1 horizontal, igual ao da referencia.
-- Mao rosa: gesto de clicar com o indicador cria e fixa o bloco no grid imediatamente.
-- Mao rosa: pinça sobre um bloco duplica a forma e arrasta a copia.
-- Mao rosa fechada seleciona todos os blocos criados.
-- Mao rosa: soltar a pinça fixa a forma na ultima posicao 3D encaixada na grade.
+- O app trabalha com cubos 1x1x1.
+- Mao rosa: o gesto sobre um bloco existente apenas seleciona a peca.
+- Mao rosa: totalmente aberta move e gira todos os blocos.
+- Mao rosa: fechada deixa tudo parado e limpa o bloco ativo.
 - Mao azul: gesto com indicador e medio levantados apaga o bloco quando o cursor passa por cima dele.
 - Mao rosa: polegar + minimo desfaz a ultima acao.
-- Duas maos abertas, como na pose frontal, rotacionam o modulo selecionado em 360 graus.
-- Duas pinças ao mesmo tempo controlam o zoom pela distancia entre as maos.
 - O encaixe em grade pode ser ajustado em `config/gesture_settings.json` na secao `snap`.

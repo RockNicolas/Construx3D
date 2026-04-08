@@ -79,8 +79,10 @@ class GestureSettings:
 
 @dataclass
 class ZoomSettings:
+    default_zoom: float = 560.0
     min_zoom: float = 350.0
     max_zoom: float = 1500.0
+    camera_distance: float = 7.5
 
 
 @dataclass
@@ -91,7 +93,7 @@ class SelectionSettings:
 @dataclass
 class SnapSettings:
     enabled: bool = True
-    grid_size: float = 1.25
+    grid_size: float = 0.85
 
 
 @dataclass

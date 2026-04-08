@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 import time
-from typing import Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import cv2
 
@@ -12,7 +12,7 @@ from .tracking import HandTracker, select_build_and_erase_hands
 from .ui import draw_hold_indicator, draw_panel, export_scene
 
 
-FIXED_SHAPE_KIND = "square_5"
+FIXED_SHAPE_KIND = "square_1"
 
 
 def cursor_colors(cursor_x: int, frame_width: int) -> tuple[tuple[int, int, int], tuple[int, int, int]]:
@@ -20,20 +20,16 @@ def cursor_colors(cursor_x: int, frame_width: int) -> tuple[tuple[int, int, int]
         return (255, 225, 245), (255, 170, 235)
     return (255, 225, 205), (255, 170, 120)
 
-
-def is_rotation_pose(build_hand, erase_hand) -> bool:
-    if build_hand is None or erase_hand is None:
-        return False
-    if build_hand.pinch or erase_hand.pinch or erase_hand.is_erase_pose:
-        return False
-    return build_hand.finger_count >= 4 and erase_hand.finger_count >= 4
-
-
 def main() -> None:
     settings = load_settings()
     ensure_runtime_dirs()
 
-    scene = Scene3D(grid_size=settings.snap.grid_size, snap_enabled=settings.snap.enabled)
+    scene = Scene3D(
+        grid_size=settings.snap.grid_size,
+        snap_enabled=settings.snap.enabled,
+        camera_distance=settings.zoom.camera_distance,
+        zoom=settings.zoom.default_zoom,
+    )
     latest_input = latest_scene_input_path()
     if latest_input.exists():
         scene.import_json(latest_input)
@@ -58,15 +54,12 @@ def main() -> None:
     cv2.resizeWindow(WINDOW_NAME, initial_width, initial_height)
     cv2.moveWindow(WINDOW_NAME, initial_x, initial_y)
 
-    zoom_anchor: Optional[Tuple[float, float]] = None
-    rotation_anchor: Optional[Tuple[int, float, float]] = None
-    pinch_was_active = False
     create_pose_was_active = False
-    select_all_was_active = False
-    hold_mode: Optional[str] = None
+    freeze_pose_was_active = False
+    manipulation_anchor: Optional[Dict[str, Any]] = None
     active_shape_kind = FIXED_SHAPE_KIND
     last_erased_shape_id: Optional[int] = None
-    status_text = "A mao rosa cria o bloco 5x1; a azul apaga ao passar por cima." 
+    status_text = "Mao rosa aberta move e gira todos os blocos; mao azul apaga."
     previous_time = time.time()
 
     try:
@@ -102,69 +95,57 @@ def main() -> None:
 
             scene.hover_id = erase_hover_id if erase_hover_id is not None else build_hover_id
 
-            rotation_active = is_rotation_pose(build_hand, erase_hand) and scene.get_active_shape() is not None
-            zoom_active = (
-                build_hand is not None
-                and erase_hand is not None
-                and build_hand.pinch
-                and erase_hand.pinch
-                and scene.held_shape_id is None
-            )
-
-            if zoom_active:
-                hand_distance = math.dist(build_hand.center, erase_hand.center)
-                if zoom_anchor is None:
-                    zoom_anchor = (hand_distance, scene.zoom)
-                anchor_distance, anchor_zoom = zoom_anchor
-                ratio = hand_distance / max(anchor_distance, 1.0)
-                scene.zoom = clamp(anchor_zoom * ratio, settings.zoom.min_zoom, settings.zoom.max_zoom)
-                status_text = f"Zoom ajustado para {int(scene.zoom)}"
-            else:
-                zoom_anchor = None
-
-            if rotation_active:
-                active_shape = scene.get_active_shape()
-                if active_shape is not None:
-                    hand_angle = math.atan2(
-                        erase_hand.center[1] - build_hand.center[1],
-                        erase_hand.center[0] - build_hand.center[0],
-                    )
-                    if rotation_anchor is None or rotation_anchor[0] != active_shape.shape_id:
-                        scene.snapshot()
-                        rotation_anchor = (active_shape.shape_id, hand_angle, active_shape.rotation_y)
-                    shape_id, anchor_angle, anchor_rotation = rotation_anchor
-                    scene.set_shape_rotation(shape_id, anchor_rotation + (hand_angle - anchor_angle))
-                    status_text = "Rotacionando forma em 360 graus."
-            else:
-                rotation_anchor = None
+            undo_active = False
+            freeze_active = False
+            if build_hand is not None:
+                undo_active = build_hand.gesture_matches([True, False, False, False, True])
+                freeze_active = build_hand.is_fist and not undo_active
 
             if build_hand is not None:
-                cursor_world = scene.world_from_screen(build_hand.cursor, (frame_w, frame_h), build_hand.cursor_depth)
-                undo_active = build_hand.gesture_matches([True, False, False, False, True])
-                create_active = build_hand.is_create_pose and build_hover_id is None and not zoom_active and not rotation_active
-                duplicate_active = build_hand.pinch and build_hover_id is not None and not zoom_active
-                select_all_active = build_hand.is_select_all_pose and not zoom_active and not rotation_active and scene.held_shape_id is None
+                cursor_world = scene.world_from_screen(build_hand.center, (frame_w, frame_h), build_hand.cursor_depth)
+                create_active = False
+                select_active = build_hand.is_create_pose and build_hover_id is not None and not freeze_active
+                manipulation_active = build_hand.is_open_palm and bool(scene.shapes) and not undo_active and not freeze_active
 
-                if select_all_active and not select_all_was_active and scene.select_all():
-                    status_text = f"{len(scene.shapes)} formas selecionadas."
+                if freeze_active:
+                    manipulation_anchor = None
+                    if not freeze_pose_was_active:
+                        scene.clear_selection()
+                        status_text = "Tudo parado. Nenhum bloco ativo."
 
-                if create_active and not create_pose_was_active and scene.held_shape_id is None:
-                    if scene.place_shape(cursor_world, active_shape_kind):
-                        status_text = f"{PRIMITIVE_LABELS[active_shape_kind]} criada com clique da mao rosa."
+                if select_active and not create_pose_was_active and scene.held_shape_id is None:
+                    if scene.select_shape(build_hover_id):
+                        status_text = f"{PRIMITIVE_LABELS[active_shape_kind]} selecionada."
 
-                if duplicate_active and not pinch_was_active and scene.held_shape_id is None:
-                    action = scene.begin_hold(cursor_world, active_shape_kind, build_hover_id)
-                    hold_mode = "pinch"
-                    if action == "duplicate":
-                        status_text = "Copia criada e presa ao dedo."
-                elif hold_mode == "pinch" and scene.held_shape_id is not None:
-                    if build_hand.pinch and not zoom_active:
-                        if scene.update_held(cursor_world):
-                            status_text = "Movendo copia em tempo real."
-                    elif pinch_was_active and not zoom_active:
-                        if scene.release_held():
-                            status_text = "Copia fixada na ultima posicao."
-                        hold_mode = None
+                if manipulation_active:
+                    if manipulation_anchor is None:
+                        if scene.begin_group_transform():
+                            manipulation_anchor = {
+                                "hand_world": cursor_world,
+                                "hand_x": build_hand.center[0],
+                                "base_positions": {shape.shape_id: list(shape.position) for shape in scene.shapes},
+                                "base_rotations": {shape.shape_id: shape.rotation_y for shape in scene.shapes},
+                                "group_center": [
+                                    sum(shape.position[axis] for shape in scene.shapes) / len(scene.shapes)
+                                    for axis in range(3)
+                                ],
+                            }
+                    if manipulation_anchor is not None:
+                        translation = [
+                            cursor_world[axis] - manipulation_anchor["hand_world"][axis]
+                            for axis in range(3)
+                        ]
+                        rotation_delta = (build_hand.center[0] - manipulation_anchor["hand_x"]) * (math.pi / max(frame_w, 1)) * 2.0
+                        if scene.apply_group_transform(
+                            manipulation_anchor["base_positions"],
+                            manipulation_anchor["base_rotations"],
+                            manipulation_anchor["group_center"],
+                            translation,
+                            rotation_delta,
+                        ):
+                            status_text = "Movendo e girando todos os blocos com a mao rosa aberta."
+                else:
+                    manipulation_anchor = None
 
                 if latches.update(
                     "undo",
@@ -179,16 +160,12 @@ def main() -> None:
                 outer_color, inner_color = cursor_colors(build_hand.cursor[0], frame_w)
                 cv2.circle(frame, build_hand.cursor, 10, outer_color, 2, cv2.LINE_AA)
                 cv2.circle(frame, build_hand.cursor, 4, inner_color, -1, cv2.LINE_AA)
-                pinch_was_active = build_hand.pinch
                 create_pose_was_active = build_hand.is_create_pose
-                select_all_was_active = select_all_active
+                freeze_pose_was_active = freeze_active
             else:
-                if pinch_was_active:
-                    scene.release_held()
-                pinch_was_active = False
+                manipulation_anchor = None
                 create_pose_was_active = False
-                select_all_was_active = False
-                hold_mode = None
+                freeze_pose_was_active = False
 
             if erase_hand is not None:
                 delete_active = erase_hand.is_erase_pose and erase_hover_id is not None
